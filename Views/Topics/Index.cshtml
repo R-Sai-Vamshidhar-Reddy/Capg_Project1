@@ -1,0 +1,162 @@
+﻿@model IEnumerable<SubjectTopicApp.Models.Topics>
+@{
+    ViewData["Title"] = "Topics";
+}
+
+<h2 class="text-primary">Topics</h2>
+
+<div class="container">
+    <style>
+        .highlighted-topic {
+            background-color: #e3f2fd; /* Light blue */
+            border-left: 5px solid #007bff; /* Blue border */
+            padding-left: 10px;
+            transition: background-color 0.3s ease-in-out;
+            border-radius: 5px;
+        }
+
+        .topic-scroll-container {
+            max-height: 250px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #f8f9fa;
+        }
+
+        .fixed-topic-input {
+            position: sticky;
+            bottom: 0;
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+        }
+    </style>
+
+    <!-- Topics List -->
+    <div class="mt-4 topic-scroll-container">
+        @foreach (var topic in Model)
+        {
+            <div class="d-flex justify-content-between align-items-center p-2 topic-wrapper border-bottom" data-topic-id="@topic.TopicID">
+                <div class="d-flex flex-grow-1 align-items-center">
+                    <a href="javascript:void(0);" class="fw-bold text-dark topic-text flex-grow-1 subtopic-link" data-topic-id="@topic.TopicID">@topic.Topic</a>
+                    <input type="text" class="form-control topic-input d-none flex-grow-1 me-2" value="@topic.Topic" autofocus />
+                </div>
+                <div class="d-flex gap-2">
+                    <button class="btn btn-success btn-sm save-btn d-none">✔</button>
+                    <button class="btn btn-secondary btn-sm cancel-btn d-none">❌</button>
+                    <button class="btn btn-primary btn-sm edit-btn" data-topic-id="@topic.TopicID">Edit</button>
+                    <button class="btn btn-danger btn-sm delete-btn" data-topic-id="@topic.TopicID">Delete</button>
+                </div>
+            </div>
+        }
+    </div>
+
+    <!-- Input field & Add Button -->
+    <div class="d-flex align-items-center fixed-topic-input">
+        <label class="me-2 fw-bold">Topic:</label>
+        <input type="text" id="newTopic" class="form-control me-2" placeholder="Enter new topic">
+        <button id="addTopicBtn" class="btn btn-primary">Add</button>
+    </div>
+    <div id="error-message" class="text-danger mt-2" style="display: none;"></div>
+
+    <h2 class="text-success">SubTopics</h2>
+    <div id="subtopics-container"></div>
+</div>
+
+@section Scripts {
+    <script>
+        $(document).ready(function () {
+            function highlightTopic(topicWrapper) {
+                $(".topic-wrapper").removeClass("highlighted-topic");
+                topicWrapper.addClass("highlighted-topic");
+            }
+
+            function selectFirstTopic() {
+                var firstTopic = $(".topic-wrapper").first();
+                if (firstTopic.length > 0) {
+                    highlightTopic(firstTopic);
+                    loadSubtopics(firstTopic.data("topic-id"));
+                }
+            }
+            selectFirstTopic();
+
+            $(document).on("click", ".subtopic-link, .edit-btn", function () {
+                highlightTopic($(this).closest(".topic-wrapper"));
+            });
+
+            $("#addTopicBtn").click(function () {
+                var topicName = $("#newTopic").val().trim();
+                $("#error-message").hide().text("");
+                if (topicName === "") {
+                    $("#error-message").text("Please enter a topic name.").show();
+                    return;
+                }
+                $.post('@Url.Action("AddTopic", "Topics")', { topic: topicName }, function () {
+                    location.reload();
+                }).fail(function () {
+                    alert("Error adding topic.");
+                });
+            });
+
+            $(document).on("click", ".edit-btn", function () {
+                var container = $(this).closest(".topic-wrapper");
+                container.find(".topic-text").addClass("d-none");
+                container.find(".topic-input, .save-btn, .cancel-btn").removeClass("d-none").focus();
+            });
+
+            $(document).on("click", ".cancel-btn", function () {
+                var container = $(this).closest(".topic-wrapper");
+                container.find(".topic-text").removeClass("d-none");
+                container.find(".topic-input, .save-btn, .cancel-btn").addClass("d-none");
+            });
+
+            $(document).on("click", ".save-btn", function () {
+                var container = $(this).closest(".topic-wrapper");
+                var topicId = container.data("topic-id");
+                var newTopicName = container.find(".topic-input").val().trim();
+                if (newTopicName === "") {
+                    alert("Topic name cannot be empty.");
+                    return;
+                }
+                $.ajax({
+                    url: '@Url.Action("UpdateTopic", "Topics")',
+                    type: 'PUT',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ topicId: topicId, topic: newTopicName }),
+                    success: function () {
+                        container.find(".topic-text").text(newTopicName).removeClass("d-none");
+                        container.find(".topic-input, .save-btn, .cancel-btn").addClass("d-none");
+                    },
+                    error: function () {
+                        alert("Error updating topic.");
+                    }
+                });
+            });
+
+            $(document).on("click", ".delete-btn", function () {
+                var topicId = $(this).data("topic-id");
+                if (confirm("Are you sure you want to delete this topic?")) {
+                    $.post('@Url.Action("DeleteTopic", "Topics")', { topicId: topicId }, function () {
+                        location.reload();
+                    }).fail(function () {
+                        alert("Error deleting topic.");
+                    });
+                }
+            });
+
+            function loadSubtopics(topicId) {
+                $.get('@Url.Action("GetSubtopics", "Topics")', { topicId: topicId }, function (result) {
+                    $("#subtopics-container").html(result);
+                }).fail(function () {
+                    console.log("Error loading subtopics.");
+                });
+            }
+
+            $(document).on("click", ".subtopic-link", function () {
+                loadSubtopics($(this).data("topic-id"));
+            });
+        });
+    </script>
+}
